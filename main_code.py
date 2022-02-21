@@ -3,19 +3,31 @@ import func_bomb as fb
 import subprocess as sp
 import tkinter as tk
 import wiringpi as pi
-import random, time
+import random, time, sys
 
 ### Frame function ###
 def timer():
     timenum = int(init_time.get())
+    if timenum == 10:
+        timer_ex()
     if timenum > 0 and flag.val("timer_stop") == False:
         f.after(1000, timer)
         timenum -= 1
-        buzzer()
+        if timenum >= 10:
+            buzzer()
         fb.seg_display(timenum)
         init_time.set(str(timenum))
-    elif timenum <= 0:
+    else:
         sce.now_scene("failed")
+
+def timer_ex():
+    timenum = int(init_time.get())
+    if timenum > 3:
+        buzzer()
+        f.after(timenum*timenum*10, timer_ex)
+    elif 0 < timenum <= 3  and flag.val("timer_stop") == False:
+        buzzer_PIN.high()
+        f.after(0, timer_ex)
 
 def button_start_clicked():
     flag.fal("timer_stop")
@@ -26,6 +38,7 @@ def button_start_clicked():
 def button_stop_clicked():
     flag.tru("timer_stop")
     button_start['state'] = tk.NORMAL
+    buzzer_PIN.low()
 
 def button_miss_herasu(num):
     if num > 0:
@@ -39,42 +52,46 @@ def scene_locked():
     print("<message> scene locked now")
 
 def scene_select():
+    if myClass.firstClear:
+        sp.call("mpg321 correct1.mp3",shell=True)
+        myClass.firstClear = False
     fb.chara_display("Next","")
     print("<message> choose setting")
 
 def scene_nazo1():
-    fb.chara_display("security mode","is activated...")
-    time.sleep(2)
+    sp.call("mpg321 correct1.mp3",shell=True)
+    fb.chara_display("Step 1","")
     print("<message> nazo1")
-    fb.chara_display("To get driverKey","please operate")
     f.after(2000,nazo1_main)
 
-def scene_nazo3():
+def scene_nazo2():
     led_gre2.high()
     flag.tru("timer_stop")
     fb.chara_display("=== CLEAR!! ===","")
     time.sleep(1)
-    print("<message> nazo3")
+    print("<message> nazo2")
 
     buzzer_ex(0.05,10)
-    fb.chara_display_nihongo("=== CLEAR!! ===","   ...し゛ゃないよ")
     flag.fal("timer_stop")
+    fb.chara_display_nihongo("=== CLEAR!! ===","   ...し゛ゃないよ")
     time.sleep(2)
     fb.chara_display_nihongo("せいかい の こーと゛きって ね","ねたは゛れ した よね? ^o^")
 
 def scene_failed():
-    fb.chara_display("== EXPLODED!! ==","")
-    button_stop_clicked()
     sp.call("mpg321 bomb1.mp3",shell=True)
+    fb.chara_display("== EXPLODED!! ==","")
+    sys.exit()
+    #button_stop_clicked()
 
 def scene_clear():
     fb.chara_display("=== CLEAR!! ===","")
     sp.call("mpg321 announcement.mp3",shell=True)
-    button_stop_clicked()
+    sys.exit()
+    #button_stop_clicked()
 
 ###################physical-button functioon
 def dont_perm():
-    fb.chara_display("You do not have","permission!!")
+    miss()
     f.after(3000,scene_select)
 
 def deka_check_rising():
@@ -94,7 +111,7 @@ def deka_check_false(args):
 
 def deka_check_true(args):
     flag.fal("deka_led")
-    sce.now_scene("nazo3")
+    sce.now_scene("nazo2")
 
 def push_Button_check():
     f.after (100, push_Button_check)
@@ -132,7 +149,7 @@ def nazo1_main():
 
     code = random.randint(1,4)
     disp_num = random_pick(4)
-    line1 = " step:" + str(stage) + " code:" + str(code)
+    line1 = " Step:" + str(stage) + " Code:" + str(code)
     answer = ""
 
     if stage == 1:
@@ -161,7 +178,7 @@ def nazo1_try(color):
         flag.set("nazo1_stage",stage)
 
         if stage > 2:
-            sce.now_scene("nazo3")
+            sce.now_scene("nazo2")
         else:
             nazo1_main()
     else:
@@ -196,86 +213,97 @@ def change_miss_lamps(m):
     if m < 3:
         leftRedLED.low()
 
+class Clear():
+    def __init__(self,firstClear):
+        self.firstClear = firstClear
+
 #####################Main Function#
-#Flag Initialize#
-flag = ezSet.class_flag()
-flag_args = {"mode":0, "timer_stop": False, "push_check": True, "buzzer_ex":0, "miss_count":0, "nazo1_stage":1, "nazo1_precode":0, "nazo1_answer":0, "nazo1_stage3":False, "deka_led":False}
-for x,y in flag_args.items():
-    flag.set(x,y)
+if __name__ == '__main__':
+    myClass = Clear(True)
 
-#Generating Window
-fb.seg_reset()
-f = tk.Tk()
-la=tk.Label(f,text="=== timer ==")
-la.grid(column=0,row=1)
-
-#timer and buttons
-init_time = tk.StringVar()
-init_time.set("900")
-entry = tk.Entry(f, textvariable = init_time)
-entry.grid(column=0,row=2)
-button_start = tk.Button(f, text = 'START', command = button_start_clicked)
-button_start.grid(column=1,row=2)
-
-button_stop = tk.Button(f, text = "STOP", command = button_stop_clicked)
-button_stop.grid(column=2,row=2)
-
-button_herasu = tk.Button(f, text = "herasu", command = lambda:button_miss_herasu(flag.val("miss_count")))
-button_herasu.grid(column=1,row=3)
-
-button_discount = tk.Button(f, text = "discount10", command = lambda:count(-10))
-button_discount.grid(column=1,row=4)
-
-button_count = tk.Button(f, text = "count20", command = lambda:count(20))
-button_count.grid(column=2,row=4)
-
-button_susumu = tk.Button(f, text = "susumu", command = lambda:sce.now_scene("nazo3"))
-button_susumu.grid(column=2,row=3)
-
-#Scene Setting#
-sce = ezSet.scene("locked", "select", "nazo1", "nazo3", "clear", "failed")
-scene_args = {scene_locked:"locked", scene_select:"select", scene_nazo1:"nazo1", scene_nazo3:"nazo3", scene_failed:"failed", scene_clear:"clear"}
-for x,y in scene_args.items():
-    sce.scene_func(x,y)
-
-#Setting switch in GPIO#
-pi.wiringPiSetupGpio()
-led_gre1 = ezSet.GPIO_output(5,pi.LOW)
-led_gre2 = ezSet.GPIO_output(6,pi.LOW)
-rightRedLED = ezSet.GPIO_output(13,pi.LOW)
-centerRedLED = ezSet.GPIO_output(19,pi.LOW)
-leftRedLED = ezSet.GPIO_output(26,pi.LOW)
-buzzer_PIN = ezSet.GPIO_output(21,pi.LOW)
-
-sw_red = ezSet.GPIO_input(14, pi.LOW, sce,"DOWN")
-sw_ora = ezSet.GPIO_input(15, pi.LOW, sce,"DOWN")
-sw_gre = ezSet.GPIO_input(18, pi.LOW, sce,"DOWN")
-sw_blu = ezSet.GPIO_input(23, pi.LOW, sce,"DOWN")
-wi_ok = ezSet.GPIO_input(16, pi.HIGH, sce,"DOWN")
-wi_ng = ezSet.GPIO_input(20, pi.HIGH, sce,"DOWN")
-PIN_list = [sw_red,sw_ora,sw_gre,sw_blu,wi_ok,wi_ng]
-
-#adding functions to pins
-sw_red.func_set("locked", "Long_ex", sce.now_scene, ("select"), push_time=2, ex_func = miss)
-
-color_pins = [sw_red, sw_ora, sw_gre, sw_blu]
-select_funcs = [dont_perm, sce.now_scene, dont_perm, dont_perm]
-select_func_args = ["", "nazo1", "", ""]
-nazo1_try_args = ["red", "orange", "green", "blue"]
-
-for x in range(len(color_pins)):
-    color_pins[x].func_set("select", "Normal", select_funcs[x], select_func_args[x])
-    color_pins[x].func_set("nazo1", "Normal", nazo1_try, nazo1_try_args[x])
-
-wi_pins = [wi_ok, wi_ng]
-wi_args = ["locked", "select", "nazo1"]
-for pin in wi_pins:
-    for arg in wi_args:
-        pin.func_set(arg, "Normal", sce.now_scene, "failed")
-
-wi_ok.func_set("nazo3", "Normal", sce.now_scene, "clear")
-wi_ng.func_set("nazo3", "Normal", sce.now_scene, "failed")
-
-fb.chara_display("setting up now", "...")
-push_Button_check()
-f.mainloop()
+    #Flag Initialize#
+    flag = ezSet.class_flag()
+    flag_args = {"mode":0, "timer_stop": False, "push_check": True, "buzzer_ex":0, "miss_count":0, "nazo1_stage":1, "nazo1_precode":0, "nazo1_answer":0, "nazo1_stage3":False, "deka_led":False}
+    for x,y in flag_args.items():
+        flag.set(x,y)
+    
+    #Generating Window
+    fb.seg_reset()
+    f = tk.Tk()
+    f.geometry('360x135+100+100')
+    la=tk.Label(f,text="=== timer ==")
+    la.grid(column=0,row=1)
+    
+    #timer and buttons
+    init_time = tk.StringVar()
+    init_time.set("900")
+    entry = tk.Entry(f, textvariable = init_time)
+    entry.grid(column=0,row=2)
+    button_start = tk.Button(f, text = 'START', command = button_start_clicked)
+    button_start.grid(column=1,row=2)
+    
+    button_stop = tk.Button(f, text = "STOP", command = button_stop_clicked)
+    button_stop.grid(column=2,row=2)
+    
+    button_herasu = tk.Button(f, text = "herasu", command = lambda:button_miss_herasu(flag.val("miss_count")))
+    button_herasu.grid(column=1,row=3)
+    
+    button_discount = tk.Button(f, text = "discount10", command = lambda:count(-10))
+    button_discount.grid(column=1,row=4)
+    
+    button_count = tk.Button(f, text = "count20", command = lambda:count(20))
+    button_count.grid(column=2,row=4)
+    
+    button_susumu = tk.Button(f, text = "susumu", command = lambda:sce.now_scene("nazo2"))
+    button_susumu.grid(column=2,row=3)
+    
+    #Scene Setting#
+    sce = ezSet.scene("locked", "select", "nazo1", "nazo2", "clear", "failed")
+    scene_args = {scene_locked:"locked", scene_select:"select", scene_nazo1:"nazo1", scene_nazo2:"nazo2", scene_failed:"failed", scene_clear:"clear"}
+    for x,y in scene_args.items():
+        sce.scene_func(x,y)
+    
+    #Setting switch in GPIO#
+    pi.wiringPiSetupGpio()
+    led_gre1 = ezSet.GPIO_output(5,pi.LOW)
+    led_gre2 = ezSet.GPIO_output(6,pi.LOW)
+    rightRedLED = ezSet.GPIO_output(13,pi.LOW)
+    centerRedLED = ezSet.GPIO_output(19,pi.LOW)
+    leftRedLED = ezSet.GPIO_output(26,pi.LOW)
+    buzzer_PIN = ezSet.GPIO_output(21,pi.LOW)
+    
+    sw_red = ezSet.GPIO_input(14, pi.LOW, sce,"DOWN")
+    sw_ora = ezSet.GPIO_input(15, pi.LOW, sce,"DOWN")
+    sw_gre = ezSet.GPIO_input(18, pi.LOW, sce,"DOWN")
+    sw_blu = ezSet.GPIO_input(23, pi.LOW, sce,"DOWN")
+    wi_ok = ezSet.GPIO_input(12, pi.HIGH, sce,"DOWN")
+    wi_ng = ezSet.GPIO_input(16, pi.HIGH, sce,"DOWN")
+    PIN_list = [sw_red,sw_ora,sw_gre,sw_blu,wi_ok,wi_ng]
+    
+    #adding functions to pins
+    sw_red.func_set("locked", "Long_ex", sce.now_scene, "select", push_time=2, ex_func = miss)
+    sw_ora.func_set("locked", "Long_ex", miss, "", 0, ex_func = miss)
+    sw_gre.func_set("locked", "Long_ex", miss, "", 0, ex_func = miss)
+    sw_blu.func_set("locked", "Long_ex", miss, "", 0, ex_func = miss)
+    
+    color_pins = [sw_red, sw_ora, sw_gre, sw_blu]
+    select_funcs = [dont_perm, sce.now_scene, dont_perm, dont_perm]
+    select_func_args = ["", "nazo1", "", ""]
+    nazo1_try_args = ["red", "orange", "green", "blue"]
+    
+    for x in range(len(color_pins)):
+        color_pins[x].func_set("select", "Normal", select_funcs[x], select_func_args[x])
+        color_pins[x].func_set("nazo1", "Normal", nazo1_try, nazo1_try_args[x])
+    
+    wi_pins = [wi_ok, wi_ng]
+    wi_args = ["locked", "select", "nazo1"]
+    for pin in wi_pins:
+        for arg in wi_args:
+            pin.func_set(arg, "Normal", sce.now_scene, "failed")
+    
+    wi_ok.func_set("nazo2", "Normal", sce.now_scene, "clear")
+    wi_ng.func_set("nazo2", "Normal", sce.now_scene, "failed")
+    
+    fb.chara_display("setting up now", "...")
+    push_Button_check()
+    f.mainloop()
