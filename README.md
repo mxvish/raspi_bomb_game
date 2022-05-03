@@ -5,7 +5,7 @@ source code after I reduced 252 lines
 # Prerequisites 
 - If this game doesn’t start, you may need to do some configuration.
 - You can setup as follows automatically by using 
-https://github.com/kenteroshima/raspi_auto_setup .
+https://github.com/mxvish/raspi_auto_setup .
 <pre>
 sudo apt -y install raspberrypi-ui-mods
 sudo apt -y install mpg321
@@ -39,7 +39,7 @@ reboot
 
 # Installation
 <pre>
-git clone https://github.com/kenteroshima/raspi_bomb_game.git
+git clone https://github.com/mxvish/raspi_bomb_game.git
 </pre>
 
 # Usage
